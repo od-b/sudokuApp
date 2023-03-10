@@ -1,53 +1,80 @@
-''' Work in progress '''
+#
+# nothing is tested here
+#
 
-# TODO: sync milliseconds of segments to avoid flip flop visual
-# DIVISOR = 10 ** len(str(self.total_time - 1))
-# print("divisor : " + str(DIVISOR))
-# round_and_back = int(round((self.total_time / DIVISOR), None) * DIVISOR)
-# self.total_time = round_and_back
 
-class Time_segment:
-    def __init__(self, start):
-        self.start = start
-        self.duration = 0
+class Segment:
+    ''' reference can be for example a given map/challenge '''
+    def __init__(self, start: int, reference: int | None):
+        self.reference: int | None = reference
+        self.start: int = start
+        self.duration: int = 0
 
-    def update_duration(self, current_time):
-        self.duration = int(self.start - current_time)
-
-    def get_duration(self):
-        return self.duration
+    def update_duration(self, curr_time: int):
+        self.duration = (curr_time - self.start)
 
 
 class Timer:
+    ''' Segment based time tracking.
+        Activates when Timer.start_first_segment() is called, not on Timer.__init__ '''
     def __init__(self):
-        self.total = 0
-        self.segments = []
-        self.n_segments = 0  # to avoid calling len() every frame
-        self.fastest = None
+        self.start_time: int = 0
+        self.total_time: int = 0
+        self.active_segment: Segment | None = None
+        self.segments: list[Segment] = []
+        self.n_segments: int = 0
 
-    def end_segment(self, archive):
-        ''' do not call if segments is empty '''
-        if archive:
-            fastest = self.get_active_segment().duration
+    def start_first_segment(self, curr_time: int, ref: int | None):
+        self.start_time = curr_time
+        self.active_segment = Segment(curr_time, ref)
+
+    def new_segment(self, ref: int | None, archive_curr: bool):
+        if (archive_curr):
+            self.segments.append(self.active_segment)
+            self.n_segments += 1
+        self.active_segment = Segment(self.total_time, ref)
+
+    def get_fastest_segment(self, ref: int | None):
+        fastest_time: int | None = None
+        if not ref:
             for seg in self.segments:
-                if (seg.duration < fastest):
-                    fastest = seg.duration
-            self.fastest = min(self.segments)
+                if (not fastest_time) or (seg.duration < fastest_time):
+                    fastest_time = seg.duration
         else:
-            seg = self.segments.pop()
-            print(f'removed segment with duration = {seg.get_duration()}')
-            self.n_segments = len(self.segments)
+            for seg in self.segments:
+                if (seg.reference == ref):
+                    if (not fastest_time) or (seg.duration < fastest_time):
+                        fastest_time = seg.duration
+        
+        return fastest_time
 
-    def new_segment(self):
-        self.segments.append(Time_segment(self.total))
-        self.n_segments = len(self.segments)
+    def delete_segments_by_ref(self, ref: int):
+        for seg in self.segments:
+            if (seg.reference == ref):
+                self.segments.remove(seg)
 
-    def get_active_segment(self):
-        ''' do not call if segments is empty '''
-        return self.segments[self.n_segments - 1]
+    def delete_all_segments(self):
+        self.segments = []
+        self.n_segments = 0
 
-    def update(self, ms_total_time):
-        ''' ran every frame to update the time '''
-        self.total = ms_total_time
-        if (self.n_segments > 0):
-            return min(self.segments)
+    def full_reset(self, curr_time: int):
+        self.delete_all_segments()
+        self.start_time = curr_time
+        self.total_time = 0
+
+    # TODO
+    def total_curr_sync_ms(self):
+        # prob looks weird when seconds are flip flopping on different ms timers
+        pass
+
+    def update(self, curr_time: int):
+        # update total time
+        self.total_time = (curr_time - self.start_time)
+        # update segment time
+        self.active_segment.update_duration(curr_time)
+
+
+# TODO
+class FPS_Based_Timer(Timer):
+    # fps based timer instead of using actual time
+    pass
